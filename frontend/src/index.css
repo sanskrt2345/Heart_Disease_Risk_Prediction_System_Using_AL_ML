@@ -1,0 +1,250 @@
+@import "tailwindcss";
+
+body {
+  font-family: "Inter", ui-sans-serif, system-ui, sans-serif;
+}
+
+/* Beating heart, synced with a growing/shrinking red glow beneath it */
+@keyframes heartbeat {
+  0% {
+    transform: scale(1);
+    filter: drop-shadow(0 25px 45px rgba(255, 70, 70, 0.18));
+  }
+  14% {
+    transform: scale(1.05);
+    filter: drop-shadow(0 40px 70px rgba(255, 70, 70, 0.35));
+  }
+  28% {
+    transform: scale(1);
+    filter: drop-shadow(0 25px 45px rgba(255, 70, 70, 0.18));
+  }
+  42% {
+    transform: scale(1.03);
+    filter: drop-shadow(0 35px 60px rgba(255, 70, 70, 0.28));
+  }
+  70% {
+    transform: scale(1);
+    filter: drop-shadow(0 25px 45px rgba(255, 70, 70, 0.18));
+  }
+  100% {
+    transform: scale(1);
+    filter: drop-shadow(0 25px 45px rgba(255, 70, 70, 0.18));
+  }
+}
+
+.animate-heartbeat {
+  animation: heartbeat 1.2s ease-in-out infinite;
+  transform-origin: center;
+}
+
+/* Secondary small pulse tucked behind the heart, on the same beat */
+.animate-heartbeat-soft {
+  animation: heartbeat-soft 1.2s ease-in-out infinite;
+  transform-origin: center;
+}
+@keyframes heartbeat-soft {
+  0% { opacity: 0.35; transform: scale(0.96); }
+  14% { opacity: 0.9; transform: scale(1.08); }
+  28% { opacity: 0.35; transform: scale(0.96); }
+  100% { opacity: 0.35; transform: scale(0.96); }
+}
+
+@keyframes pulse-ring {
+  0% {
+    opacity: 0.6;
+    transform: scale(0.95);
+  }
+  70% {
+    opacity: 0;
+    transform: scale(1.15);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.15);
+  }
+}
+
+.animate-pulse-ring {
+  animation: pulse-ring 1.2s ease-out infinite;
+}
+
+@keyframes ecg-scroll {
+
+    0%{
+        transform:translateX(0);
+    }
+
+    100%{
+        transform:translateX(-600px);
+    }
+
+}
+
+.animate-ecg-scroll{
+    animation:ecg-scroll 3s linear infinite;
+}
+
+/* Gentle float for UI cards */
+@keyframes float-y {
+  0% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-5px);
+  }
+  100% {
+    transform: translateY(0);
+  }
+}
+@keyframes ecg-dot{
+
+    0%{
+        left:-2%;
+    }
+
+    100%{
+        left:100%;
+    }
+
+}
+
+.animate-ecg-dot{
+
+    animation:ecg-dot 3s linear infinite;
+
+}
+
+/* frontend/src/index.css */
+
+/* ===== ANIMATIONS ===== */
+
+/* Fade In Down - Header ke liye */
+@keyframes fadeInDown {
+  from {
+    opacity: 0;
+    transform: translateY(-30px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fadeInDown {
+  animation: fadeInDown 0.6s ease-out forwards;
+}
+
+/* Fade In Up - Form ke liye */
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(30px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fadeInUp {
+  animation: fadeInUp 0.6s ease-out forwards;
+}
+
+/* Slide In Right - Step content ke liye */
+@keyframes slideInRight {
+  from {
+    opacity: 0;
+    transform: translateX(40px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.animate-slideInRight {
+  animation: slideInRight 0.5s ease-out forwards;
+}
+
+/* Simple Fade In */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.animate-fadeIn {
+  animation: fadeIn 0.3s ease-out forwards;
+}
+
+/* Slow Pulse */
+@keyframes pulseSlow {
+  0%, 100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.08);
+  }
+}
+
+.animate-pulse-slow {
+  animation: pulseSlow 2s ease-in-out infinite;
+}
+
+/* Slow Bounce */
+@keyframes bounceSlow {
+  0%, 100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-6px);
+  }
+}
+
+.animate-bounce-slow {
+  animation: bounceSlow 2s ease-in-out infinite;
+}
+
+/* Slow Spin */
+@keyframes spinSlow {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.animate-spin-slow {
+  animation: spinSlow 6s linear infinite;
+}
+
+/* Shake - Error ke liye */
+@keyframes shake {
+  0%, 100% {
+    transform: translateX(0);
+  }
+  10%, 30%, 50%, 70%, 90% {
+    transform: translateX(-6px);
+  }
+  20%, 40%, 60%, 80% {
+    transform: translateX(6px);
+  }
+}
+
+.shake {
+  animation: shake 0.5s ease-in-out;
+}
+
+/* ===== DELAYS ===== */
+.delay-100 { animation-delay: 0.1s; }
+.delay-150 { animation-delay: 0.15s; }
+.delay-200 { animation-delay: 0.2s; }
+.delay-250 { animation-delay: 0.25s; }
+.delay-300 { animation-delay: 0.3s; }
+.delay-350 { animation-delay: 0.35s; }
+.delay-400 { animation-delay: 0.4s; }
+.delay-500 { animation-delay: 0.5s; }
