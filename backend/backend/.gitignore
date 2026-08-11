@@ -1,0 +1,7 @@
+__pycache__/
+*.pyc
+venv/
+.env
+heartrisk.db
+app/ml/heart_model.pkl
+app/ml/cleveland.csv

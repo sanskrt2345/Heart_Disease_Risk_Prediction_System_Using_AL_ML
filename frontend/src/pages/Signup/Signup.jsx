@@ -1,17 +1,32 @@
 import React, { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
+import { apiFetch } from "../../services/api";
 
 const Signup = () => {
   const navigate = useNavigate();
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    // TODO: replace with real signup API call (backend, Supabase, Firebase, etc.)
-    console.log("Signup attempt:", { name, email, password });
-    // navigate("/dashboard"); // redirect after successful signup
+    setError("");
+    setLoading(true);
+    try {
+      await apiFetch("/api/auth/signup", {
+        method: "POST",
+        body: JSON.stringify({ name, email, password }),
+      });
+      navigate("/login", {
+        state: { message: "Account created successfully! Please sign in." },
+      });
+    } catch (err) {
+      setError(err.message || "Signup failed. Please try again.");
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -34,6 +49,12 @@ const Signup = () => {
         <p className="text-sm text-gray-500 mt-1 mb-6">
           Start your free cardiovascular risk assessment in under 2 minutes.
         </p>
+
+        {error && (
+          <div className="mb-4 px-4 py-2 rounded-xl bg-red-50 border border-red-200 text-red-600 text-xs">
+            {error}
+          </div>
+        )}
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
@@ -81,9 +102,10 @@ const Signup = () => {
 
           <button
             type="submit"
-            className="w-full py-3 rounded-full bg-gradient-to-r from-red-500 to-orange-500 text-white font-medium text-sm shadow-md hover:shadow-lg transition-shadow"
+            disabled={loading}
+            className="w-full py-3 rounded-full bg-gradient-to-r from-red-500 to-orange-500 text-white font-medium text-sm shadow-md hover:shadow-lg transition-shadow disabled:opacity-60"
           >
-            Create Account →
+            {loading ? "Creating account..." : "Create Account →"}
           </button>
         </form>
 

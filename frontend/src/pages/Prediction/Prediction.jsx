@@ -1,6 +1,7 @@
 // frontend/src/pages/Prediction/Prediction.jsx
 import React, { useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
+import { apiFetch } from "../../services/api";
 
 import {
   FiHeart,
@@ -46,6 +47,7 @@ const Prediction = () => {
   const location = useLocation();
 
   const [isPredicting, setIsPredicting] = useState(false);
+  const [error, setError] = useState("");
 
   const patientData = location.state?.patientData || {
     age: 50,
@@ -62,28 +64,31 @@ const Prediction = () => {
     return sex;
   };
 
-  const handlePredict = () => {
+  const handlePredict = async () => {
     setIsPredicting(true);
+    setError("");
 
-    setTimeout(() => {
-      const result = {
-        prediction: Math.random() > 0.4 ? 1 : 0,
-        probability: (Math.random() * 0.4 + 0.6).toFixed(3),
-        riskLevel: Math.random() > 0.4 ? "High Risk" : "Low Risk",
-        confidence: (Math.random() * 0.15 + 0.85).toFixed(3),
-      };
+    try {
+      // Calls the real ML model on the backend (trained on the Cleveland dataset)
+      const result = await apiFetch("/api/predict", {
+        method: "POST",
+        body: JSON.stringify(patientData),
+      });
 
-      setIsPredicting(false);
-
+      // brief pause so the loading modal doesn't just flash instantly
       setTimeout(() => {
+        setIsPredicting(false);
         navigate("/results", {
           state: {
             result,
             patientData,
           },
         });
-      }, 1500);
-    }, 2000);
+      }, 800);
+    } catch (err) {
+      setIsPredicting(false);
+      setError(err.message || "Prediction failed. Please try again.");
+    }
   };
 
   return (
@@ -287,6 +292,12 @@ const Prediction = () => {
 
                 </div>
 
+                {error && (
+                  <div className="mb-6 px-4 py-3 rounded-xl bg-red-50 border border-red-200 text-red-600 text-sm">
+                    {error}
+                  </div>
+                )}
+
                 {/* ===== METRIC CARDS ===== */}
 
                 <div className="grid grid-cols-5 gap-5">
@@ -402,7 +413,7 @@ const Prediction = () => {
                     </p>
 
                     <h3 className="mt-2 text-3xl font-bold text-slate-900">
-                      24.9
+                      {patientData.bmi || 24.9}
                     </h3>
 
                     <p className="mt-1 text-sm text-slate-500">
@@ -483,7 +494,7 @@ const Prediction = () => {
 
               <p className="mt-3 text-slate-500 leading-relaxed">
 
-                Our XGBoost model is analyzing the patient's clinical
+                Our AI model is analyzing the patient's clinical
                 parameters and calculating the heart disease risk.
 
               </p>

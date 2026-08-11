@@ -1,7 +1,8 @@
 // frontend/src/pages/Dashboard/Dashboard.jsx
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import heroCorridor from "../../assets/images/hero-corridor.jpg";
+import { apiFetch } from "../../services/api";
 
 import {
   FiGrid,
@@ -28,7 +29,7 @@ import {
 
 const navItems = [
   { icon: FiGrid, label: "Dashboard", path: "/dashboard", active: true },
-  { icon: FiUser, label: "Patient Details", path: "/patient-form" },  // Changed to patient-form
+  { icon: FiUser, label: "Patient Details", path: "/patient-form" },
   { icon: FiFileText, label: "Medical Report", path: "/report" },
   { icon: FiHeart, label: "Risk Prediction", path: "/prediction" },
   { icon: FiActivity, label: "Results", path: "/results" },
@@ -37,41 +38,6 @@ const navItems = [
   { icon: FiZap, label: "Lifestyle Tips", path: "/tips" },
   { icon: FiClock, label: "History", path: "/history" },
   { icon: FiSettings, label: "Settings", path: "/settings" },
-];
-
-/* ===========================
-      STAT CARDS
-=========================== */
-
-const statCards = [
-  {
-    label: "Current Risk Score",
-    value: "0.8%",
-    sub: "Low Risk",
-    badge: FiHeart,
-    badgeBg: "bg-emerald-500",
-  },
-  {
-    label: "Heart Age",
-    value: "40",
-    sub: "vs chronological age",
-    badge: FiActivity,
-    badgeBg: "bg-blue-500",
-  },
-  {
-    label: "Health Score",
-    value: "100",
-    sub: "0 - 100 wellness",
-    badge: FiZap,
-    badgeBg: "bg-emerald-500",
-  },
-  {
-    label: "Total Assessments",
-    value: "0",
-    sub: "Across all sessions",
-    badge: FiUserCheck,
-    badgeBg: "bg-blue-500",
-  },
 ];
 
 /* ===========================
@@ -117,22 +83,57 @@ const Dashboard = () => {
   const navigate = useNavigate();
 
   const [hoverIdx, setHoverIdx] = useState(null);
+  const [summary, setSummary] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
 
-  const trendData = [
-    { day: "D-6", risk: 0.5, score: 85 },
-    { day: "D-5", risk: 0.8, score: 78 },
-    { day: "D-4", risk: 1.2, score: 72 },
-    { day: "D-3", risk: 0.9, score: 80 },
-    { day: "D-2", risk: 0.6, score: 88 },
-    { day: "D-1", risk: 0.4, score: 92 },
-    { day: "D-0", risk: 0.3, score: 95 },
+  useEffect(() => {
+    apiFetch("/api/dashboard/summary")
+      .then(setSummary)
+      .catch((err) => setError(err.message || "Couldn't load dashboard data."))
+      .finally(() => setLoading(false));
+  }, []);
+
+  const hasData = summary && summary.totalAssessments > 0;
+
+  const statCards = [
+    {
+      label: "Current Risk Score",
+      value: hasData ? `${summary.latestRiskPct}%` : "-",
+      sub: hasData ? summary.latestRiskLevel : "No assessments yet",
+      badge: FiHeart,
+      badgeBg: hasData && summary.latestRiskLevel === "High Risk" ? "bg-red-500" : "bg-emerald-500",
+    },
+    {
+      label: "Heart Age",
+      value: hasData && summary.latestHeartAge != null ? summary.latestHeartAge : "-",
+      sub: "vs chronological age",
+      badge: FiActivity,
+      badgeBg: "bg-blue-500",
+    },
+    {
+      label: "Health Score",
+      value: hasData && summary.averageHealthScore != null ? summary.averageHealthScore : "-",
+      sub: "0 - 100 wellness",
+      badge: FiZap,
+      badgeBg: "bg-emerald-500",
+    },
+    {
+      label: "Total Assessments",
+      value: summary ? summary.totalAssessments : "-",
+      sub: "Across all sessions",
+      badge: FiUserCheck,
+      badgeBg: "bg-blue-500",
+    },
   ];
+
+  const trendData = hasData && summary.trend.length > 0 ? summary.trend : [];
 
   const chartW = 620;
   const chartH = 220;
   const maxY = 100;
 
-  const stepX = chartW / (trendData.length - 1);
+  const stepX = trendData.length > 1 ? chartW / (trendData.length - 1) : chartW;
 
   const yToPx = (v) => chartH - (v / maxY) * chartH;
 
@@ -207,6 +208,13 @@ const Dashboard = () => {
         {/* Main Container */}
         <main className="flex-1 overflow-y-auto">
           <div className="max-w-[1180px] mx-auto px-8 py-8 space-y-8">
+
+            {error && (
+              <div className="px-4 py-3 rounded-xl bg-red-50 border border-red-200 text-red-600 text-sm">
+                {error}
+              </div>
+            )}
+
             {/* ================= HERO SECTION ================= */}
             <section
               className="relative overflow-hidden rounded-[32px] min-h-[220px] px-12 py-10 bg-cover bg-center shadow-xl"
@@ -273,7 +281,7 @@ const Dashboard = () => {
                         {card.label}
                       </p>
                       <h2 className="text-3xl font-bold text-slate-900 mt-3">
-                        {card.value}
+                        {loading ? "..." : card.value}
                       </h2>
                       <p className="text-sm text-slate-500 mt-1">
                         {card.sub}
@@ -302,132 +310,163 @@ const Dashboard = () => {
                       Risk & Health Score Trend
                     </h2>
                   </div>
-                  <button className="flex items-center gap-1.5 text-sm text-blue-600 font-medium hover:text-blue-700 transition-colors">
+                  <button
+                    onClick={() => navigate("/history")}
+                    className="flex items-center gap-1.5 text-sm text-blue-600 font-medium hover:text-blue-700 transition-colors"
+                  >
                     View Details
                     <FiChevronRight className="w-4 h-4" />
                   </button>
                 </div>
 
-                {/* Chart */}
-                <div className="relative mt-6">
-                  <svg
-                    viewBox={`0 0 ${chartW} ${chartH}`}
-                    className="w-full h-56"
-                    onMouseLeave={() => setHoverIdx(null)}
-                  >
-                    {/* Y-axis grid lines */}
-                    {[0, 25, 50, 75, 100].map((v) => (
-                      <line
-                        key={v}
-                        x1={0}
-                        x2={chartW}
-                        y1={yToPx(v)}
-                        y2={yToPx(v)}
-                        stroke="#E2E8F0"
-                        strokeWidth="1"
-                        strokeDasharray="4 4"
-                      />
-                    ))}
-
-                    {/* Y-axis labels */}
-                    <text x="-18" y={yToPx(100) + 4} className="text-xs fill-slate-400 font-medium">
-                      100
-                    </text>
-                    <text x="-18" y={yToPx(75) + 4} className="text-xs fill-slate-400 font-medium">
-                      75
-                    </text>
-                    <text x="-18" y={yToPx(50) + 4} className="text-xs fill-slate-400 font-medium">
-                      50
-                    </text>
-                    <text x="-18" y={yToPx(25) + 4} className="text-xs fill-slate-400 font-medium">
-                      25
-                    </text>
-                    <text x="-18" y={yToPx(0) + 4} className="text-xs fill-slate-400 font-medium">
-                      0
-                    </text>
-
-                    {/* Area under the curve */}
-                    <polygon
-                      points={`0,${chartH} ${points} ${(trendData.length - 1) * stepX},${chartH}`}
-                      fill="url(#blueGradient)"
-                      opacity="0.15"
-                    />
-
-                    <defs>
-                      <linearGradient id="blueGradient" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="0%" stopColor="#3B82F6" stopOpacity="0.6" />
-                        <stop offset="100%" stopColor="#3B82F6" stopOpacity="0" />
-                      </linearGradient>
-                    </defs>
-
-                    <polyline
-                      points={points}
-                      fill="none"
-                      stroke="#3B82F6"
-                      strokeWidth="3"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    />
-
-                    {trendData.map((d, index) => (
-                      <g key={index}>
-                        <rect
-                          x={index * stepX - stepX / 2}
-                          y={0}
-                          width={stepX}
-                          height={chartH}
-                          fill="transparent"
-                          onMouseEnter={() => setHoverIdx(index)}
-                        />
-                        <circle
-                          cx={index * stepX}
-                          cy={yToPx(d.score)}
-                          r={hoverIdx === index ? 8 : 5}
-                          fill="#3B82F6"
-                          stroke="white"
-                          strokeWidth="2.5"
-                          className="transition-all duration-200 cursor-pointer"
-                        />
-                      </g>
-                    ))}
-                  </svg>
-
-                  {/* Tooltip */}
-                  {hoverIdx !== null && (
-                    <div
-                      className="absolute bg-white rounded-xl shadow-xl border border-slate-200 px-4 py-3 text-sm"
-                      style={{
-                        left: `${(hoverIdx / (trendData.length - 1)) * 100}%`,
-                        top: `${yToPx(trendData[hoverIdx].score) - 85}px`,
-                        transform: "translateX(-50%)",
-                        minWidth: "120px",
-                      }}
+                {/* Chart or empty state */}
+                {loading ? (
+                  <div className="mt-6 h-56 flex items-center justify-center text-sm text-slate-400">
+                    Loading...
+                  </div>
+                ) : trendData.length === 0 ? (
+                  <div className="mt-6 h-56 flex flex-col items-center justify-center text-center gap-2">
+                    <FiTrendingUp className="text-slate-300 w-8 h-8" />
+                    <p className="text-sm text-slate-500">
+                      No assessments yet - run your first prediction to see your trend here.
+                    </p>
+                    <button
+                      onClick={() => navigate("/prediction")}
+                      className="mt-2 text-sm text-blue-600 font-semibold"
                     >
-                      <p className="font-semibold text-slate-800 text-center">
-                        {trendData[hoverIdx].day}
-                      </p>
-                      <div className="flex justify-between gap-3 mt-1">
-                        <span className="text-xs text-slate-500">Risk:</span>
-                        <span className="text-xs font-semibold text-red-500">
-                          {trendData[hoverIdx].risk}%
-                        </span>
+                      Run a prediction →
+                    </button>
+                  </div>
+                ) : trendData.length === 1 ? (
+                  <div className="mt-6 h-56 flex flex-col items-center justify-center text-center gap-1">
+                    <p className="text-3xl font-bold text-slate-900">{trendData[0].score}</p>
+                    <p className="text-sm text-slate-500">
+                      Health score from your latest assessment. Run more predictions to see a trend.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="relative mt-6">
+                    <svg
+                      viewBox={`0 0 ${chartW} ${chartH}`}
+                      className="w-full h-56"
+                      onMouseLeave={() => setHoverIdx(null)}
+                    >
+                      {/* Y-axis grid lines */}
+                      {[0, 25, 50, 75, 100].map((v) => (
+                        <line
+                          key={v}
+                          x1={0}
+                          x2={chartW}
+                          y1={yToPx(v)}
+                          y2={yToPx(v)}
+                          stroke="#E2E8F0"
+                          strokeWidth="1"
+                          strokeDasharray="4 4"
+                        />
+                      ))}
+
+                      {/* Y-axis labels */}
+                      <text x="-18" y={yToPx(100) + 4} className="text-xs fill-slate-400 font-medium">
+                        100
+                      </text>
+                      <text x="-18" y={yToPx(75) + 4} className="text-xs fill-slate-400 font-medium">
+                        75
+                      </text>
+                      <text x="-18" y={yToPx(50) + 4} className="text-xs fill-slate-400 font-medium">
+                        50
+                      </text>
+                      <text x="-18" y={yToPx(25) + 4} className="text-xs fill-slate-400 font-medium">
+                        25
+                      </text>
+                      <text x="-18" y={yToPx(0) + 4} className="text-xs fill-slate-400 font-medium">
+                        0
+                      </text>
+
+                      {/* Area under the curve */}
+                      <polygon
+                        points={`0,${chartH} ${points} ${(trendData.length - 1) * stepX},${chartH}`}
+                        fill="url(#blueGradient)"
+                        opacity="0.15"
+                      />
+
+                      <defs>
+                        <linearGradient id="blueGradient" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="0%" stopColor="#3B82F6" stopOpacity="0.6" />
+                          <stop offset="100%" stopColor="#3B82F6" stopOpacity="0" />
+                        </linearGradient>
+                      </defs>
+
+                      <polyline
+                        points={points}
+                        fill="none"
+                        stroke="#3B82F6"
+                        strokeWidth="3"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      />
+
+                      {trendData.map((d, index) => (
+                        <g key={index}>
+                          <rect
+                            x={index * stepX - stepX / 2}
+                            y={0}
+                            width={stepX}
+                            height={chartH}
+                            fill="transparent"
+                            onMouseEnter={() => setHoverIdx(index)}
+                          />
+                          <circle
+                            cx={index * stepX}
+                            cy={yToPx(d.score)}
+                            r={hoverIdx === index ? 8 : 5}
+                            fill="#3B82F6"
+                            stroke="white"
+                            strokeWidth="2.5"
+                            className="transition-all duration-200 cursor-pointer"
+                          />
+                        </g>
+                      ))}
+                    </svg>
+
+                    {/* Tooltip */}
+                    {hoverIdx !== null && (
+                      <div
+                        className="absolute bg-white rounded-xl shadow-xl border border-slate-200 px-4 py-3 text-sm"
+                        style={{
+                          left: `${(hoverIdx / (trendData.length - 1)) * 100}%`,
+                          top: `${yToPx(trendData[hoverIdx].score) - 85}px`,
+                          transform: "translateX(-50%)",
+                          minWidth: "120px",
+                        }}
+                      >
+                        <p className="font-semibold text-slate-800 text-center">
+                          {trendData[hoverIdx].day}
+                        </p>
+                        <div className="flex justify-between gap-3 mt-1">
+                          <span className="text-xs text-slate-500">Risk:</span>
+                          <span className="text-xs font-semibold text-red-500">
+                            {trendData[hoverIdx].risk}%
+                          </span>
+                        </div>
+                        <div className="flex justify-between gap-3">
+                          <span className="text-xs text-slate-500">Score:</span>
+                          <span className="text-xs font-semibold text-emerald-600">
+                            {trendData[hoverIdx].score}
+                          </span>
+                        </div>
                       </div>
-                      <div className="flex justify-between gap-3">
-                        <span className="text-xs text-slate-500">Score:</span>
-                        <span className="text-xs font-semibold text-emerald-600">
-                          {trendData[hoverIdx].score}
-                        </span>
-                      </div>
-                    </div>
-                  )}
-                </div>
+                    )}
+                  </div>
+                )}
 
                 {/* X Axis */}
-                <div className="flex justify-between mt-2 text-xs text-slate-400 px-1 font-medium">
-                  {trendData.map((d, index) => (
-                    <span key={index}>{d.day}</span>
-                  ))}
-                </div>
+                {trendData.length > 1 && (
+                  <div className="flex justify-between mt-2 text-xs text-slate-400 px-1 font-medium">
+                    {trendData.map((d, index) => (
+                      <span key={index}>{d.day}</span>
+                    ))}
+                  </div>
+                )}
               </div>
 
               {/* ===================== QUICK ACTIONS ===================== */}
@@ -482,7 +521,10 @@ const Dashboard = () => {
                     <strong> 5 days</strong> a week — proven to reduce 
                     cardiovascular risk by up to <strong>19%</strong>.
                   </p>
-                  <button className="mt-4 w-full rounded-xl bg-white/20 backdrop-blur-sm text-white py-2.5 font-semibold hover:bg-white/30 transition border border-white/20">
+                  <button
+                    onClick={() => navigate("/tips")}
+                    className="mt-4 w-full rounded-xl bg-white/20 backdrop-blur-sm text-white py-2.5 font-semibold hover:bg-white/30 transition border border-white/20"
+                  >
                     View More Tips
                   </button>
                 </div>

@@ -2,6 +2,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
+import { apiFetch } from "../../services/api";
 import {
   FiGrid,
   FiUser,
@@ -12,7 +13,6 @@ import {
   FiMessageCircle,
   FiZap,
   FiClock,
-  FiUserCheck,
   FiSettings,
   FiSend,
   FiCpu,
@@ -20,7 +20,6 @@ import {
 
 /* ===========================
       SIDEBAR MENU
-   (kept identical to Dashboard.jsx / Whatif.jsx so every page matches)
 =========================== */
 const navItems = [
   { icon: FiGrid, label: "Dashboard", path: "/dashboard" },
@@ -35,24 +34,26 @@ const navItems = [
   { icon: FiSettings, label: "Settings", path: "/settings" },
 ];
 
+const DARK_MODE_KEY = "hhm_dark_mode";
+
 function Sidebar() {
   const navigate = useNavigate();
   const location = useLocation();
 
   return (
-    <aside className="w-60 bg-white border-r border-slate-200 flex flex-col shadow-sm">
-      <div className="px-6 py-6 border-b border-slate-100">
+    <aside className="w-60 bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 flex flex-col shadow-sm">
+      <div className="px-6 py-6 border-b border-slate-100 dark:border-slate-800">
         <motion.div
           initial={{ opacity: 0, y: -8 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.4, ease: "easeOut" }}
+          transition={{ duration: 0.3, ease: "easeOut" }}
           className="flex items-center gap-3"
         >
           <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-red-500 to-red-600 flex items-center justify-center shadow-lg">
             <FiHeart className="text-white w-5 h-5" />
           </div>
           <div>
-            <h2 className="font-semibold text-[15px] text-slate-900">
+            <h2 className="font-semibold text-[15px] text-slate-900 dark:text-slate-100">
               Heart Health Monitor
             </h2>
             <p className="text-[9px] tracking-[0.25em] text-slate-400 uppercase mt-1 font-medium">
@@ -68,36 +69,38 @@ function Sidebar() {
           return (
             <motion.button
               key={index}
-              initial={{ opacity: 0, x: -12 }}
+              initial={{ opacity: 0, x: -8 }}
               animate={{ opacity: 1, x: 0 }}
-              transition={{ delay: index * 0.04, duration: 0.3, ease: "easeOut" }}
-              whileHover={{ x: isActive ? 0 : 3 }}
-              whileTap={{ scale: 0.97 }}
+              transition={{ delay: index * 0.025, duration: 0.25, ease: "easeOut" }}
+              whileHover={{ x: isActive ? 0 : 2 }}
+              whileTap={{ scale: 0.98 }}
               onClick={() => navigate(item.path)}
               className={`relative w-full flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm font-medium overflow-hidden ${
-                isActive ? "text-white" : "text-slate-600 hover:bg-slate-100"
+                isActive
+                  ? "text-white"
+                  : "text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"
               }`}
             >
               {isActive && (
                 <motion.div
                   layoutId="sidebar-active-pill"
-                  className="absolute inset-0 rounded-xl bg-blue-600 shadow-md"
-                  transition={{ type: "spring", stiffness: 380, damping: 32 }}
+                  className="absolute inset-0 rounded-xl bg-blue-600"
+                  transition={{ type: "spring", stiffness: 420, damping: 36 }}
                 />
               )}
-              <item.icon className={`relative z-10 w-5 h-5 ${isActive ? "text-white" : "text-slate-500"}`} />
+              <item.icon className={`relative z-10 w-5 h-5 ${isActive ? "text-white" : "text-slate-500 dark:text-slate-400"}`} />
               <span className="relative z-10">{item.label}</span>
             </motion.button>
           );
         })}
       </nav>
 
-      <div className="px-6 py-5 border-t border-slate-100">
-        <div className="rounded-xl bg-slate-50 p-3">
-          <p className="text-[10px] text-slate-500 uppercase tracking-wider font-semibold">
+      <div className="px-6 py-5 border-t border-slate-100 dark:border-slate-800">
+        <div className="rounded-xl bg-slate-50 dark:bg-slate-800 p-3">
+          <p className="text-[10px] text-slate-500 dark:text-slate-400 uppercase tracking-wider font-semibold">
             AI MODEL
           </p>
-          <p className="font-semibold text-sm text-slate-900 mt-1">
+          <p className="font-semibold text-sm text-slate-900 dark:text-slate-100 mt-1">
             XGBoost v2.0
           </p>
         </div>
@@ -124,9 +127,9 @@ function MessageBubble({ role, content, time }) {
   return (
     <motion.div
       layout
-      initial={{ opacity: 0, y: 12, scale: 0.98 }}
+      initial={{ opacity: 0, y: 8, scale: 0.99 }}
       animate={{ opacity: 1, y: 0, scale: 1 }}
-      transition={{ duration: 0.3, ease: "easeOut" }}
+      transition={{ duration: 0.25, ease: "easeOut" }}
       className={`flex ${isUser ? "justify-end" : "justify-start"}`}
     >
       <div className={`flex max-w-[75%] gap-3 ${isUser ? "flex-row-reverse" : "flex-row"}`}>
@@ -146,12 +149,12 @@ function MessageBubble({ role, content, time }) {
             className={`rounded-2xl px-4 py-3 text-sm leading-relaxed shadow-sm ${
               isUser
                 ? "rounded-tr-sm bg-blue-600 text-white"
-                : "rounded-tl-sm border border-slate-200 bg-white text-slate-700"
+                : "rounded-tl-sm border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200"
             }`}
           >
             {content}
           </div>
-          <p className={`mt-1 text-[11px] text-slate-400 ${isUser ? "text-right" : "text-left"}`}>
+          <p className={`mt-1 text-[11px] text-slate-400 dark:text-slate-500 ${isUser ? "text-right" : "text-left"}`}>
             {time}
           </p>
         </div>
@@ -166,21 +169,21 @@ function MessageBubble({ role, content, time }) {
 function TypingIndicator() {
   return (
     <motion.div
-      initial={{ opacity: 0, y: 10 }}
+      initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, y: -6 }}
-      transition={{ duration: 0.2 }}
+      exit={{ opacity: 0, y: -4 }}
+      transition={{ duration: 0.18 }}
       className="flex justify-start"
     >
       <div className="flex gap-3">
         <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-red-500 to-red-600">
           <FiCpu className="h-4 w-4 text-white" />
         </div>
-        <div className="flex items-center gap-1 rounded-2xl rounded-tl-sm border border-slate-200 bg-white px-4 py-3 shadow-sm">
+        <div className="flex items-center gap-1 rounded-2xl rounded-tl-sm border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-4 py-3 shadow-sm">
           {[0, 1, 2].map((i) => (
             <motion.span
               key={i}
-              className="h-1.5 w-1.5 rounded-full bg-slate-400"
+              className="h-1.5 w-1.5 rounded-full bg-slate-400 dark:bg-slate-500"
               animate={{ y: [0, -5, 0] }}
               transition={{ duration: 0.6, repeat: Infinity, delay: i * 0.15, ease: "easeInOut" }}
             />
@@ -197,25 +200,6 @@ function TypingIndicator() {
 const formatTime = () =>
   new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 
-// Placeholder response generator. Swap this out for your real backend /
-// LLM API call (e.g. fetch to your FastAPI /chat endpoint).
-function mockAssistantReply(userText) {
-  const text = userText.toLowerCase();
-  if (text.includes("risk score")) {
-    return "Your risk score reflects your estimated 10-year probability of a cardiovascular event, based on factors like blood pressure, cholesterol, and lifestyle inputs. A lower score is better — I can walk you through what's driving yours if you'd like.";
-  }
-  if (text.includes("blood pressure")) {
-    return "A few evidence-backed ways to lower blood pressure: reduce sodium intake, aim for 150 minutes of moderate activity a week, limit alcohol, and manage stress. Small, consistent changes tend to move the needle more than drastic ones.";
-  }
-  if (text.includes("cholesterol")) {
-    return "Cholesterol readings break down into LDL ('bad'), HDL ('good'), and triglycerides. Your report shows the full breakdown — I can explain any of those numbers or suggest dietary changes that typically help.";
-  }
-  if (text.includes("heart age")) {
-    return "Heart age compares your cardiovascular risk profile to the average person of your chronological age. Improving sleep, activity, and diet consistently can bring your heart age closer to (or below) your real age over time.";
-  }
-  return "Thanks for the question — I can help interpret your risk prediction, medical report, or suggest lifestyle changes. Could you share a bit more detail so I can give you a precise answer?";
-}
-
 /* ===========================
       COMPONENT
 =========================== */
@@ -230,28 +214,55 @@ export default function AIAssistant() {
   ]);
   const [input, setInput] = useState("");
   const [isTyping, setIsTyping] = useState(false);
+  const [error, setError] = useState("");
   const scrollRef = useRef(null);
+
+  // Apply the globally-persisted dark mode preference in case this page
+  // is loaded directly (fresh navigation / hard reload).
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem(DARK_MODE_KEY) === "true";
+      document.documentElement.classList.toggle("dark", saved);
+    } catch {
+      /* ignore */
+    }
+  }, []);
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
   }, [messages, isTyping]);
 
-  const sendMessage = (text) => {
+  const sendMessage = async (text) => {
     const trimmed = text.trim();
     if (!trimmed || isTyping) return;
 
     setMessages((prev) => [...prev, { role: "user", content: trimmed, time: formatTime() }]);
     setInput("");
     setIsTyping(true);
+    setError("");
 
-    // Replace this timeout + mock reply with your real API call.
-    setTimeout(() => {
+    try {
+      const data = await apiFetch("/api/assistant/chat", {
+        method: "POST",
+        body: JSON.stringify({ message: trimmed }),
+      });
       setMessages((prev) => [
         ...prev,
-        { role: "assistant", content: mockAssistantReply(trimmed), time: formatTime() },
+        { role: "assistant", content: data.content, time: formatTime() },
       ]);
+    } catch (err) {
+      setError(err.message || "Couldn't reach the assistant.");
+      setMessages((prev) => [
+        ...prev,
+        {
+          role: "assistant",
+          content: "Sorry, I couldn't process that right now. Please try again.",
+          time: formatTime(),
+        },
+      ]);
+    } finally {
       setIsTyping(false);
-    }, 900);
+    }
   };
 
   const handleSubmit = (e) => {
@@ -260,7 +271,7 @@ export default function AIAssistant() {
   };
 
   return (
-    <div className="min-h-screen flex bg-[#F8FAFC]">
+    <div className="min-h-screen flex bg-[#F8FAFC] dark:bg-slate-950 transition-colors">
       <Sidebar />
 
       <div className="flex-1 flex flex-col">
@@ -268,31 +279,31 @@ export default function AIAssistant() {
         <motion.header
           initial={{ opacity: 0, y: -10 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.4, ease: "easeOut" }}
-          className="h-20 bg-white border-b border-slate-200 flex items-center justify-between px-10 shrink-0"
+          transition={{ duration: 0.3, ease: "easeOut" }}
+          className="h-20 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between px-10 shrink-0"
         >
           <div className="flex items-center gap-3">
             <motion.div
-              animate={{ scale: [1, 1.06, 1] }}
-              transition={{ duration: 2.4, repeat: Infinity, ease: "easeInOut" }}
-              className="flex h-11 w-11 items-center justify-center rounded-2xl bg-gradient-to-br from-blue-600 to-indigo-700 shadow-lg"
+              animate={{ scale: [1, 1.04, 1] }}
+              transition={{ duration: 2.6, repeat: Infinity, ease: "easeInOut" }}
+              className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-blue-600 to-blue-800 shadow-sm"
             >
-              <FiCpu className="h-5 w-5 text-white" />
+              <FiCpu className="h-4 w-4 text-white" />
             </motion.div>
             <div>
-              <h1 className="text-xl font-bold text-slate-900">AI Health Assistant</h1>
-              <p className="text-sm text-slate-500">
+              <h1 className="text-lg font-semibold text-slate-900 dark:text-slate-100">AI Health Assistant</h1>
+              <p className="text-[13px] text-slate-500 dark:text-slate-400">
                 Ask questions about your risk, report, or lifestyle
               </p>
             </div>
           </div>
-          <div className="flex items-center gap-2 rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1.5">
+          <div className="flex items-center gap-2 rounded-full border border-emerald-200 dark:border-emerald-900 bg-emerald-50 dark:bg-emerald-500/10 px-3 py-1.5">
             <motion.span
               className="h-2 w-2 rounded-full bg-emerald-500"
               animate={{ opacity: [1, 0.4, 1] }}
               transition={{ duration: 1.6, repeat: Infinity, ease: "easeInOut" }}
             />
-            <span className="text-xs font-semibold text-emerald-700">Online</span>
+            <span className="text-xs font-semibold text-emerald-700 dark:text-emerald-400">Online</span>
           </div>
         </motion.header>
 
@@ -301,9 +312,15 @@ export default function AIAssistant() {
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
-            transition={{ duration: 0.4, delay: 0.1 }}
+            transition={{ duration: 0.3, delay: 0.08 }}
             className="mx-auto flex h-full max-w-3xl flex-col px-6 py-6"
           >
+            {error && (
+              <div className="mb-3 px-4 py-2 rounded-xl bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-900 text-red-600 dark:text-red-400 text-xs">
+                {error}
+              </div>
+            )}
+
             <div ref={scrollRef} className="flex-1 space-y-5 overflow-y-auto pr-1">
               <AnimatePresence initial={false}>
                 {messages.map((m, i) => (
@@ -322,7 +339,7 @@ export default function AIAssistant() {
                   exit={{ opacity: 0 }}
                   variants={{
                     hidden: {},
-                    show: { transition: { staggerChildren: 0.06, delayChildren: 0.15 } },
+                    show: { transition: { staggerChildren: 0.05, delayChildren: 0.1 } },
                   }}
                   className="mt-4 flex flex-wrap gap-2"
                 >
@@ -330,13 +347,14 @@ export default function AIAssistant() {
                     <motion.button
                       key={prompt}
                       variants={{
-                        hidden: { opacity: 0, y: 8 },
+                        hidden: { opacity: 0, y: 6 },
                         show: { opacity: 1, y: 0 },
                       }}
-                      whileHover={{ y: -2 }}
-                      whileTap={{ scale: 0.96 }}
+                      whileHover={{ y: -1 }}
+                      whileTap={{ scale: 0.97 }}
+                      transition={{ duration: 0.15 }}
                       onClick={() => sendMessage(prompt)}
-                      className="rounded-full border border-slate-200 bg-white px-4 py-2 text-xs font-medium text-slate-600 shadow-sm transition-colors hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700"
+                      className="rounded-full border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-4 py-2 text-xs font-medium text-slate-600 dark:text-slate-300 shadow-sm transition-colors hover:border-blue-200 dark:hover:border-blue-800 hover:bg-blue-50 dark:hover:bg-blue-500/10 hover:text-blue-700 dark:hover:text-blue-400"
                     >
                       {prompt}
                     </motion.button>
@@ -348,29 +366,30 @@ export default function AIAssistant() {
             {/* Input */}
             <motion.form
               onSubmit={handleSubmit}
-              initial={{ opacity: 0, y: 10 }}
+              initial={{ opacity: 0, y: 8 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.4, delay: 0.2 }}
-              className="mt-4 flex items-center gap-3 rounded-2xl border border-slate-200 bg-white p-2 shadow-sm focus-within:border-blue-300 focus-within:ring-2 focus-within:ring-blue-100"
+              transition={{ duration: 0.3, delay: 0.15 }}
+              className="mt-4 flex items-center gap-3 rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-2 shadow-sm focus-within:border-blue-300 dark:focus-within:border-blue-700 focus-within:ring-2 focus-within:ring-blue-100 dark:focus-within:ring-blue-900/40"
             >
               <input
                 type="text"
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
                 placeholder="Ask about your heart health..."
-                className="flex-1 bg-transparent px-3 py-2 text-sm text-slate-700 placeholder:text-slate-400 focus:outline-none"
+                className="flex-1 bg-transparent px-3 py-2 text-sm text-slate-700 dark:text-slate-200 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none"
               />
               <motion.button
                 type="submit"
                 disabled={!input.trim() || isTyping}
-                whileHover={{ scale: input.trim() ? 1.05 : 1 }}
-                whileTap={{ scale: input.trim() ? 0.95 : 1 }}
+                whileHover={{ scale: input.trim() ? 1.04 : 1 }}
+                whileTap={{ scale: input.trim() ? 0.96 : 1 }}
+                transition={{ duration: 0.15 }}
                 className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-blue-600 text-white transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-40"
               >
                 <FiSend className="h-4 w-4" />
               </motion.button>
             </motion.form>
-            <p className="mt-2 text-center text-[11px] text-slate-400">
+            <p className="mt-2 text-center text-[11px] text-slate-400 dark:text-slate-600">
               AI responses are informational and not a substitute for professional medical advice.
             </p>
           </motion.div>

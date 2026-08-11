@@ -1,16 +1,33 @@
 import React, { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useLocation } from "react-router-dom";
+import { apiFetch } from "../../services/api";
 
 const Login = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
+  const successMessage = location.state?.message || "";
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    // TODO: replace with real auth call (API request, Supabase, Firebase, etc.)
-    console.log("Login attempt:", { email, password });
-    navigate("/dashboard"); // redirect after successful login
+    setError("");
+    setLoading(true);
+    try {
+      const data = await apiFetch("/api/auth/login", {
+        method: "POST",
+        body: JSON.stringify({ email, password }),
+      });
+      localStorage.setItem("token", data.access_token);
+      localStorage.setItem("user", JSON.stringify(data.user));
+      navigate("/dashboard");
+    } catch (err) {
+      setError(err.message || "Login failed. Please check your credentials.");
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -33,6 +50,18 @@ const Login = () => {
         <p className="text-sm text-gray-500 mt-1 mb-6">
           Sign in to start your free cardiovascular assessment.
         </p>
+
+        {successMessage && (
+          <div className="mb-4 px-4 py-2 rounded-xl bg-green-50 border border-green-200 text-green-600 text-xs">
+            {successMessage}
+          </div>
+        )}
+
+        {error && (
+          <div className="mb-4 px-4 py-2 rounded-xl bg-red-50 border border-red-200 text-red-600 text-xs">
+            {error}
+          </div>
+        )}
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
@@ -65,9 +94,10 @@ const Login = () => {
 
           <button
             type="submit"
-            className="w-full py-3 rounded-full bg-gradient-to-r from-red-500 to-orange-500 text-white font-medium text-sm shadow-md hover:shadow-lg transition-shadow"
+            disabled={loading}
+            className="w-full py-3 rounded-full bg-gradient-to-r from-red-500 to-orange-500 text-white font-medium text-sm shadow-md hover:shadow-lg transition-shadow disabled:opacity-60"
           >
-            Sign In →
+            {loading ? "Signing in..." : "Sign In →"}
           </button>
         </form>
 

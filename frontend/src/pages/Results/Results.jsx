@@ -54,37 +54,50 @@ const navItems = [
   { icon: FiSettings, label: "Settings", path: "/settings" },
 ];
 
-// ---- Sample data (swap with your real API response) ----
-const patient = {
-  name: "Anonymous",
-  generatedAt: "30/6/2026, 12:10:50 am",
-  probability: 0.8, // %
-  riskLabel: "Low risk",
-  healthScore: 100,
-  heartAge: 40,
-  chronoAge: 32,
-  confidence: 98.2,
-  bmi: 24.9,
-  bmiLabel: "Normal",
-  bloodPressure: 120,
-  bloodPressureLabel: "Elevated",
-  cholesterol: 200,
-  cholesterolLabel: "Borderline",
-  recommendation:
-    "Continue annual check-ups. Maintain healthy lifestyle and re-assess yearly.",
-};
-const riskFactors = [
-  { name: "Chest pain type", value: 92 },
-  { name: "Thalassemia", value: 68 },
-  { name: "Major vessels colored", value: 34 },
-  { name: "ST slope", value: 30 },
-  { name: "Resting ECG", value: 22 },
-  { name: "Exercise-induced angina", value: 18 },
-];
-const riskPie = [
-  { name: "Cardiac risk", value: patient.probability },
-  { name: "Safe margin", value: 100 - patient.probability },
-];
+// ---- helpers: turn raw backend result + patient form data into display values ----
+
+function labelForBmi(bmi) {
+  if (bmi == null) return { label: "Unknown", tone: "neutral" };
+  if (bmi < 18.5) return { label: "Underweight", tone: "warning" };
+  if (bmi < 25) return { label: "Normal", tone: "good" };
+  if (bmi < 30) return { label: "Overweight", tone: "warning" };
+  return { label: "Obese", tone: "warning" };
+}
+
+function labelForBp(bp) {
+  if (bp == null) return { label: "Unknown", tone: "neutral" };
+  if (bp < 120) return { label: "Normal", tone: "good" };
+  if (bp < 130) return { label: "Elevated", tone: "warning" };
+  return { label: "High", tone: "warning" };
+}
+
+function labelForChol(chol) {
+  if (chol == null) return { label: "Unknown", tone: "neutral" };
+  if (chol < 200) return { label: "Normal", tone: "good" };
+  if (chol < 240) return { label: "Borderline", tone: "warning" };
+  return { label: "High", tone: "warning" };
+}
+
+// Simple heuristic "feature impact" built from the patient's own clinical
+// inputs (not real SHAP values from the model, but scaled the same
+// direction as the risk factors the model was trained on).
+function computeFeatureImpact(p) {
+  const cp = Number(p.cp ?? 0);
+  const thal = Number(p.thal ?? 1);
+  const ca = Number(p.ca ?? 0);
+  const slope = Number(p.slope ?? 1);
+  const restecg = Number(p.restecg ?? 0);
+  const exang = Number(p.exang ?? 0);
+
+  return [
+    { name: "Chest pain type", value: cp === 0 ? 95 : Math.max(15, 70 - cp * 18) },
+    { name: "Thalassemia", value: thal === 3 ? 85 : thal === 2 ? 35 : 20 },
+    { name: "Major vessels colored", value: Math.min(95, 20 + ca * 25) },
+    { name: "ST slope", value: slope === 1 ? 75 : slope === 2 ? 30 : 45 },
+    { name: "Resting ECG", value: restecg === 1 ? 60 : 25 },
+    { name: "Exercise-induced angina", value: exang === 1 ? 80 : 20 },
+  ];
+}
 
 // ---- Small building blocks ----
 function StatCard({ label, value, sub, subTone }) {
@@ -115,11 +128,12 @@ function Gauge({ value }) {
     const largeArc = endAngle - startAngle <= 180 ? 0 : 1;
     return `M ${sx} ${sy} A ${radius} ${radius} 0 ${largeArc} 1 ${ex} ${ey}`;
   };
+  const color = value >= 50 ? "#ef4444" : value >= 25 ? "#f59e0b" : "#22c55e";
   return (
     <svg viewBox="0 0 180 110" width="100%" height="140">
       <path d={describeArc(-90, 90)} fill="none" stroke="#eceef1" strokeWidth="10" strokeLinecap="round" />
-      <path d={describeArc(-90, angle)} fill="none" stroke="#22c55e" strokeWidth="10" strokeLinecap="round" />
-      <circle cx={nx} cy={ny} r="6" fill="#22c55e" />
+      <path d={describeArc(-90, angle)} fill="none" stroke={color} strokeWidth="10" strokeLinecap="round" />
+      <circle cx={nx} cy={ny} r="6" fill={color} />
     </svg>
   );
 }
@@ -131,6 +145,63 @@ export default function Result() {
   const location = useLocation();
   const reportRef = useRef(null);
   const [downloading, setDownloading] = useState(false);
+
+  // Data passed from Prediction.jsx: { result, patientData }
+  const rawResult = location.state?.result;
+  const patientData = location.state?.patientData || {};
+
+  // If someone lands here without running a prediction first, guide them back.
+  if (!rawResult) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-[#F8FAFC] px-6">
+        <div className="max-w-md text-center bg-white border border-slate-200 rounded-2xl p-10 shadow-sm">
+          <FiActivity className="mx-auto text-slate-300" size={40} />
+          <h2 className="mt-4 text-lg font-bold text-slate-900">No result to show yet</h2>
+          <p className="mt-2 text-sm text-slate-500">
+            Run a risk prediction first and it'll land here automatically.
+          </p>
+          <button
+            onClick={() => navigate("/patient-form")}
+            className="mt-6 px-6 py-3 rounded-full bg-blue-600 text-white text-sm font-semibold"
+          >
+            Go to Patient Details
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  const probability = Number(rawResult.riskPct ?? (rawResult.probability * 100)).toFixed(1);
+  const bmiInfo = labelForBmi(patientData.bmi);
+  const bpInfo = labelForBp(patientData.trestbps);
+  const cholInfo = labelForChol(patientData.chol);
+
+  const patient = {
+    name: patientData.name || "Anonymous",
+    generatedAt: new Date().toLocaleString(),
+    probability: Number(probability),
+    riskLabel: rawResult.riskLevel === "High Risk" ? "High risk" : "Low risk",
+    healthScore: rawResult.healthScore ?? "-",
+    heartAge: rawResult.heartAge ?? "-",
+    chronoAge: patientData.age ?? "-",
+    confidence: (Number(rawResult.confidence) * 100).toFixed(1),
+    bmi: patientData.bmi ?? "-",
+    bmiLabel: bmiInfo.label,
+    bmiTone: bmiInfo.tone,
+    bloodPressure: patientData.trestbps ?? "-",
+    bloodPressureLabel: bpInfo.label,
+    bpTone: bpInfo.tone,
+    cholesterol: patientData.chol ?? "-",
+    cholesterolLabel: cholInfo.label,
+    cholTone: cholInfo.tone,
+    recommendation: rawResult.recommendation || "Consult your doctor to review these results.",
+  };
+
+  const riskFactors = computeFeatureImpact(patientData);
+  const riskPie = [
+    { name: "Cardiac risk", value: patient.probability },
+    { name: "Safe margin", value: 100 - patient.probability },
+  ];
 
   const handleDownload = async () => {
     if (!reportRef.current) return;
@@ -300,8 +371,8 @@ export default function Result() {
             justify-content: center;
             text-align: center;
           }
-          .gauge-value { font-size: 26px; font-weight: 700; color: #22c55e; margin-top: 4px; }
-          .gauge-caption { font-size: 13px; font-weight: 600; color: #22c55e; margin-top: 2px; }
+          .gauge-value { font-size: 26px; font-weight: 700; color: #1a1d23; margin-top: 4px; }
+          .gauge-caption { font-size: 13px; font-weight: 600; color: #1a1d23; margin-top: 2px; }
           .hrr-stats-card { display: flex; flex-direction: column; gap: 18px; }
           .hrr-stats-row {
             display: grid;
@@ -423,19 +494,19 @@ export default function Result() {
                     label="BMI"
                     value={patient.bmi}
                     sub={patient.bmiLabel}
-                    subTone="good"
+                    subTone={patient.bmiTone}
                   />
                   <StatCard
                     label="Blood pressure"
                     value={patient.bloodPressure}
                     sub={patient.bloodPressureLabel}
-                    subTone="warning"
+                    subTone={patient.bpTone}
                   />
                   <StatCard
                     label="Cholesterol"
                     value={patient.cholesterol}
                     sub={patient.cholesterolLabel}
-                    subTone="warning"
+                    subTone={patient.cholTone}
                   />
                 </div>
                 <div className="hrr-reco">
@@ -494,14 +565,14 @@ export default function Result() {
                           endAngle={-270}
                           stroke="none"
                         >
-                          <Cell fill="#22c55e" />
+                          <Cell fill={patient.probability >= 50 ? "#ef4444" : "#22c55e"} />
                           <Cell fill="#eceef1" />
                         </Pie>
                       </PieChart>
                     </ResponsiveContainer>
                   </div>
                   <div className="hrr-pie-legend">
-                    <span><span className="legend-dot" style={{ background: "#22c55e" }} />Cardiac risk</span>
+                    <span><span className="legend-dot" style={{ background: patient.probability >= 50 ? "#ef4444" : "#22c55e" }} />Cardiac risk</span>
                     <span><span className="legend-dot" style={{ background: "#eceef1" }} />Safe margin</span>
                   </div>
                 </div>

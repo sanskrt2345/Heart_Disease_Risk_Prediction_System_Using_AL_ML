@@ -1,6 +1,7 @@
 // frontend/src/pages/Report/Report.jsx
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
+import { apiFetch } from "../../services/api";
 import {
   FiFileText,
   FiUpload,
@@ -15,6 +16,8 @@ import {
   FiUserCheck,
   FiSettings,
   FiMoon,
+  FiCheckCircle,
+  FiAlertCircle,
 } from "react-icons/fi";
 
 // Sidebar Navigation Items
@@ -36,23 +39,64 @@ const Report = () => {
   const fileInputRef = useRef(null);
   const [isDragging, setIsDragging] = useState(false);
   const [reports, setReports] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [uploading, setUploading] = useState(false);
+  const [error, setError] = useState("");
+  const [lastResults, setLastResults] = useState([]); // extraction/prediction results from the latest upload
+
+  const loadReports = async () => {
+    try {
+      const data = await apiFetch("/api/reports");
+      setReports(data);
+    } catch (err) {
+      setError(err.message || "Couldn't load report history.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadReports();
+  }, []);
+
+  const uploadFiles = async (fileList) => {
+    if (!fileList || fileList.length === 0) return;
+    setUploading(true);
+    setError("");
+    setLastResults([]);
+    try {
+      const token = localStorage.getItem("token");
+      const formData = new FormData();
+      Array.from(fileList).forEach((file) => formData.append("files", file));
+
+      const res = await fetch("http://localhost:8000/api/reports/upload", {
+        method: "POST",
+        headers: {
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: formData, // don't set Content-Type manually - browser sets the multipart boundary
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.detail || "Upload failed");
+      }
+      const uploadResults = await res.json(); // [{ report, extracted, patientData, result, message }, ...]
+
+      setReports((prev) => [...uploadResults.map((r) => r.report), ...prev]);
+      setLastResults(uploadResults);
+    } catch (err) {
+      setError(err.message || "Upload failed. Please try again.");
+    } finally {
+      setUploading(false);
+    }
+  };
 
   const handleUploadClick = () => {
     fileInputRef.current?.click();
   };
 
   const handleFileSelect = (e) => {
-    const files = e.target.files;
-    if (files.length > 0) {
-      const newReports = Array.from(files).map((file) => ({
-        id: Date.now() + Math.random(),
-        name: file.name,
-        size: file.size,
-        type: file.type,
-        date: new Date().toISOString(),
-      }));
-      setReports((prev) => [...newReports, ...prev]);
-    }
+    uploadFiles(e.target.files);
   };
 
   const handleDragEnter = (e) => {
@@ -76,18 +120,16 @@ const Report = () => {
     e.preventDefault();
     e.stopPropagation();
     setIsDragging(false);
-    
-    const files = e.dataTransfer.files;
-    if (files.length > 0) {
-      const newReports = Array.from(files).map((file) => ({
-        id: Date.now() + Math.random(),
-        name: file.name,
-        size: file.size,
-        type: file.type,
-        date: new Date().toISOString(),
-      }));
-      setReports((prev) => [...newReports, ...prev]);
-    }
+    uploadFiles(e.dataTransfer.files);
+  };
+
+  const viewResult = (item) => {
+    navigate("/results", {
+      state: {
+        result: item.result,
+        patientData: item.patientData,
+      },
+    });
   };
 
   return (
@@ -148,7 +190,7 @@ const Report = () => {
           <div>
             <h1 className="text-2xl font-bold text-slate-900">Medical Report</h1>
             <p className="text-sm text-slate-500 mt-1">
-              Upload and manage patient medical reports
+              Upload a PDF report and we'll try to auto-detect risk factors and run a prediction.
             </p>
           </div>
           <button className="w-11 h-11 rounded-2xl bg-slate-100 hover:bg-slate-200 transition flex items-center justify-center">
@@ -159,6 +201,12 @@ const Report = () => {
         {/* Main Content */}
         <main className="flex-1 overflow-y-auto">
           <div className="max-w-4xl mx-auto px-8 py-8">
+
+            {error && (
+              <div className="mb-4 px-4 py-3 rounded-xl bg-red-50 border border-red-200 text-red-600 text-sm">
+                {error}
+              </div>
+            )}
             
             {/* Upload Section */}
             <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden mb-6">
@@ -168,7 +216,7 @@ const Report = () => {
                   Upload Report
                 </h2>
                 <p className="text-xs text-slate-500 mt-1">
-                  Drop a PDF or image of the medical report and we'll extract key parameters.
+                  PDF reports get scanned for clinical values automatically. Image reports are saved but not auto-analyzed yet.
                 </p>
               </div>
 
@@ -199,14 +247,22 @@ const Report = () => {
                     <div className={`w-16 h-16 rounded-full flex items-center justify-center ${
                       isDragging ? "bg-blue-100" : "bg-slate-100"
                     }`}>
-                      <FiUpload className={`w-8 h-8 ${
-                        isDragging ? "text-blue-600" : "text-slate-400"
-                      }`} />
+                      {uploading ? (
+                        <div className="w-6 h-6 border-[3px] border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+                      ) : (
+                        <FiUpload className={`w-8 h-8 ${
+                          isDragging ? "text-blue-600" : "text-slate-400"
+                        }`} />
+                      )}
                     </div>
                     
                     <div>
                       <p className="text-sm font-medium text-slate-700">
-                        {isDragging ? "Drop your files here" : "Drag & drop or click to browse"}
+                        {uploading
+                          ? "Uploading & analyzing..."
+                          : isDragging
+                          ? "Drop your files here"
+                          : "Drag & drop or click to browse"}
                       </p>
                       <p className="text-xs text-slate-400 mt-1">
                         PDF, PNG, JPG, JPEG - up to 8MB
@@ -216,6 +272,77 @@ const Report = () => {
                 </div>
               </div>
             </div>
+
+            {/* Latest extraction / prediction results */}
+            {lastResults.length > 0 && (
+              <div className="space-y-4 mb-6">
+                {lastResults.map((item, idx) => (
+                  <div
+                    key={idx}
+                    className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden"
+                  >
+                    <div className="px-6 py-4 border-b border-slate-200 bg-slate-50 flex items-center justify-between">
+                      <h3 className="font-semibold text-slate-900 text-sm">
+                        {item.report.name}
+                      </h3>
+                      {item.result ? (
+                        <span
+                          className={`text-xs font-semibold px-3 py-1 rounded-full ${
+                            item.result.riskLevel === "High Risk"
+                              ? "bg-red-50 text-red-600"
+                              : "bg-green-50 text-green-600"
+                          }`}
+                        >
+                          {item.result.riskLevel} · {item.result.riskPct}%
+                        </span>
+                      ) : (
+                        <span className="text-xs font-semibold px-3 py-1 rounded-full bg-slate-100 text-slate-500">
+                          Not analyzed
+                        </span>
+                      )}
+                    </div>
+
+                    <div className="p-6">
+                      <div className="flex items-start gap-2 text-sm text-slate-600 mb-4">
+                        {item.result ? (
+                          <FiCheckCircle className="text-green-500 mt-0.5 shrink-0" />
+                        ) : (
+                          <FiAlertCircle className="text-amber-500 mt-0.5 shrink-0" />
+                        )}
+                        <p>{item.message}</p>
+                      </div>
+
+                      {item.extracted && Object.keys(item.extracted).length > 0 && (
+                        <div className="mb-4">
+                          <p className="text-xs font-semibold uppercase tracking-wide text-slate-400 mb-2">
+                            Detected values
+                          </p>
+                          <div className="flex flex-wrap gap-2">
+                            {Object.entries(item.extracted).map(([key, val]) => (
+                              <span
+                                key={key}
+                                className="text-xs px-2.5 py-1 rounded-lg bg-blue-50 text-blue-700 font-medium"
+                              >
+                                {key}: {String(val)}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {item.result && (
+                        <button
+                          onClick={() => viewResult(item)}
+                          className="px-5 py-2.5 rounded-full bg-blue-600 text-white text-sm font-semibold hover:bg-blue-700 transition"
+                        >
+                          View full risk report →
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
 
             {/* Upload History */}
             <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
@@ -227,7 +354,9 @@ const Report = () => {
               </div>
 
               <div className="p-6">
-                {reports.length === 0 ? (
+                {loading ? (
+                  <div className="text-center py-12 text-sm text-slate-400">Loading...</div>
+                ) : reports.length === 0 ? (
                   <div className="text-center py-12">
                     <div className="w-20 h-20 rounded-full bg-slate-100 flex items-center justify-center mx-auto mb-4">
                       <FiFileText className="w-10 h-10 text-slate-300" />
@@ -248,7 +377,7 @@ const Report = () => {
                           <div>
                             <p className="text-sm font-medium text-slate-900">{report.name}</p>
                             <p className="text-xs text-slate-500">
-                              {new Date(report.date).toLocaleDateString()} • 
+                              {new Date(report.date).toLocaleDateString()} •{" "}
                               {(report.size / 1024).toFixed(1)} KB
                             </p>
                           </div>

@@ -2,6 +2,7 @@
 import React, { useEffect, useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { motion } from "framer-motion";
+import { apiFetch } from "../../services/api";
 import {
   FiGrid,
   FiUser,
@@ -27,13 +28,8 @@ import { GiFruitBowl, GiFlame } from "react-icons/gi";
 import { FaWalking, FaStethoscope } from "react-icons/fa";
 import { MdSmokeFree } from "react-icons/md";
 
-// Shared localStorage key — Prediction.jsx writes the risk result here after
-// calculating, this page reads it to personalize recommendations.
-const RISK_PROFILE_KEY = "hhm_risk_profile";
-
 /* ===========================
       SIDEBAR MENU
-   (kept identical to Dashboard.jsx / Whatif.jsx / AIAssistant.jsx)
 =========================== */
 const navItems = [
   { icon: FiGrid, label: "Dashboard", path: "/dashboard" },
@@ -120,44 +116,9 @@ function Sidebar() {
 }
 
 /* ===========================
-      DAILY TARGET STATS
-   NOTE: these are placeholder/default values for the frontend build.
-   Once the backend is wired up, swap these for values computed from
-   the patient's actual risk profile (age, BMI, activity level, etc).
-=========================== */
-const TARGET_STATS = [
-  {
-    icon: GiFlame,
-    color: "text-orange-500",
-    label: "Daily Calories",
-    value: "2076",
-    unit: "kcal",
-  },
-  {
-    icon: FiDroplet,
-    color: "text-blue-500",
-    label: "Water Target",
-    value: "2.5",
-    unit: "L",
-  },
-  {
-    icon: FaWalking,
-    color: "text-violet-500",
-    label: "Steps Target",
-    value: "10,000",
-    unit: "/day",
-  },
-  {
-    icon: FiTarget,
-    color: "text-orange-500",
-    label: "BMI Target",
-    value: "18.5–24.9",
-    unit: "",
-  },
-];
-
-/* ===========================
-      RECOMMENDATION CATEGORIES
+      STATIC RECOMMENDATION CATEGORIES
+   (general, evidence-based defaults - shown alongside the personalized
+   tips fetched from the backend below)
 =========================== */
 const RECOMMENDATIONS = [
   {
@@ -239,6 +200,12 @@ const RECOMMENDATIONS = [
   },
 ];
 
+const PRIORITY_STYLES = {
+  high: "bg-red-50 text-red-600 border-red-100",
+  medium: "bg-amber-50 text-amber-600 border-amber-100",
+  low: "bg-slate-50 text-slate-500 border-slate-200",
+};
+
 /* ===========================
       STAT CARD
 =========================== */
@@ -297,6 +264,24 @@ function RecommendationCard({ icon: Icon, iconBg, title, items, plain }) {
 }
 
 /* ===========================
+      PERSONALIZED TIP CARD (from backend)
+=========================== */
+function PersonalizedTipCard({ category, title, description, priority }) {
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.3, ease: "easeOut" }}
+      className={`rounded-2xl border p-5 ${PRIORITY_STYLES[priority] || PRIORITY_STYLES.low}`}
+    >
+      <p className="text-[10px] font-semibold uppercase tracking-wider opacity-70">{category}</p>
+      <h4 className="mt-1 text-sm font-bold">{title}</h4>
+      <p className="mt-1.5 text-xs leading-relaxed opacity-90">{description}</p>
+    </motion.div>
+  );
+}
+
+/* ===========================
       EMPTY / LOADING STATES
 =========================== */
 function LoadingState() {
@@ -350,29 +335,44 @@ function NoRiskState({ onNavigate }) {
 export default function Lifestyle() {
   const navigate = useNavigate();
 
-  // undefined = still checking localStorage, null = no risk profile found, object = risk profile exists
-  const [riskProfile, setRiskProfile] = useState(undefined);
+  // undefined = still loading, null = no assessment yet, array = personalized tips
+  const [tips, setTips] = useState(undefined);
+  const [error, setError] = useState("");
 
-  // Read the risk profile written by Prediction.jsx once, on mount.
   useEffect(() => {
-    try {
-      const stored = localStorage.getItem(RISK_PROFILE_KEY);
-      setRiskProfile(stored ? JSON.parse(stored) : null);
-    } catch (err) {
-      console.error("Failed to read risk profile:", err);
-      setRiskProfile(null);
+    async function load() {
+      try {
+        // Check whether the user has run at least one prediction
+        const summary = await apiFetch("/api/dashboard/summary");
+        if (!summary || summary.totalAssessments === 0) {
+          setTips(null);
+          return;
+        }
+        // Fetch personalized tips based on their latest patient data
+        const data = await apiFetch("/api/lifestyle");
+        setTips(data);
+      } catch (err) {
+        setError(err.message || "Couldn't load lifestyle tips.");
+        setTips(null);
+      }
     }
+    load();
   }, []);
 
-  // Still reading localStorage — avoid a flash of the "no risk" state.
-  if (riskProfile === undefined) {
+  if (tips === undefined) {
     return <LoadingState />;
   }
 
-  // Risk hasn't been calculated yet — don't show recommendations, prompt user instead.
-  if (riskProfile === null) {
+  if (tips === null) {
     return <NoRiskState onNavigate={() => navigate("/prediction")} />;
   }
+
+  const targetStats = [
+    { icon: GiFlame, color: "text-orange-500", label: "Daily Calories", value: "2076", unit: "kcal" },
+    { icon: FiDroplet, color: "text-blue-500", label: "Water Target", value: "2.5", unit: "L" },
+    { icon: FaWalking, color: "text-violet-500", label: "Steps Target", value: "10,000", unit: "/day" },
+    { icon: FiTarget, color: "text-orange-500", label: "BMI Target", value: "18.5–24.9", unit: "" },
+  ];
 
   return (
     <div className="min-h-screen flex bg-[#F8FAFC]">
@@ -393,19 +393,38 @@ export default function Lifestyle() {
               Personalized Recommendations
             </h1>
             <p className="mt-1 text-sm text-slate-500">
-              Daily targets and lifestyle prescriptions tailored to the patient's risk profile.
+              Daily targets and lifestyle prescriptions tailored to your risk profile.
             </p>
           </motion.div>
 
+          {error && (
+            <div className="mt-4 px-4 py-3 rounded-xl bg-red-50 border border-red-200 text-red-600 text-sm">
+              {error}
+            </div>
+          )}
+
           {/* Daily target stats */}
           <div className="mt-8 grid grid-cols-2 gap-5 lg:grid-cols-4">
-            {TARGET_STATS.map((stat, i) => (
+            {targetStats.map((stat, i) => (
               <StatCard key={i} {...stat} />
             ))}
           </div>
 
-          {/* Recommendation category cards */}
-          <div className="mt-6 grid grid-cols-1 gap-5 sm:grid-cols-2 xl:grid-cols-3">
+          {/* Personalized tips from backend */}
+          {tips.length > 0 && (
+            <>
+              <h2 className="mt-8 text-lg font-bold text-slate-900">Personalized for you</h2>
+              <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
+                {tips.map((tip, i) => (
+                  <PersonalizedTipCard key={i} {...tip} />
+                ))}
+              </div>
+            </>
+          )}
+
+          {/* General recommendation category cards */}
+          <h2 className="mt-8 text-lg font-bold text-slate-900">General guidelines</h2>
+          <div className="mt-4 grid grid-cols-1 gap-5 sm:grid-cols-2 xl:grid-cols-3">
             {RECOMMENDATIONS.map((rec, i) => (
               <RecommendationCard key={i} {...rec} />
             ))}

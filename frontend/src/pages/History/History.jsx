@@ -1,7 +1,8 @@
 // frontend/src/pages/History/History.jsx
-import React, { useMemo, useState } from "react";
+import React, { useMemo, useState, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
+import { apiFetch } from "../../services/api";
 import {
   FiGrid,
   FiUser,
@@ -23,7 +24,6 @@ import {
 
 /* ===========================
       SIDEBAR MENU
-   (kept identical to Dashboard.jsx / Lifestyle.jsx / PatientForm.jsx)
 =========================== */
 const navItems = [
   { icon: FiGrid, label: "Dashboard", path: "/dashboard" },
@@ -110,27 +110,6 @@ function Sidebar() {
 }
 
 /* ===========================
-      SAMPLE DATA
-   NOTE: placeholder records for the frontend build. Once the backend
-   is wired up, replace this with real prediction history fetched
-   from the API / database.
-=========================== */
-const SAMPLE_HISTORY = [
-  { id: "r1", date: "2026-06-30T16:03:23", patient: "Anonymous", riskPct: 0.8, heartAge: 40, notes: "" },
-  { id: "r2", date: "2026-06-30T16:02:17", patient: "Anonymous", riskPct: 12.4, heartAge: 46, notes: "Follow-up in 3 months" },
-  { id: "r3", date: "2026-06-30T00:15:34", patient: "R. Sharma", riskPct: 0.8, heartAge: 40, notes: "" },
-  { id: "r4", date: "2026-06-30T00:11:26", patient: "Anonymous", riskPct: 61.2, heartAge: 58, notes: "Referred to cardiologist" },
-  { id: "r5", date: "2026-06-30T00:11:02", patient: "Anonymous", riskPct: 0.8, heartAge: 40, notes: "" },
-  { id: "r6", date: "2026-06-30T00:10:59", patient: "A. Verma", riskPct: 28.5, heartAge: 51, notes: "" },
-  { id: "r7", date: "2026-06-30T00:10:43", patient: "Anonymous", riskPct: 0.8, heartAge: 40, notes: "" },
-  { id: "r8", date: "2026-06-29T22:32:29", patient: "Anonymous", riskPct: 0.8, heartAge: 40, notes: "" },
-  { id: "r9", date: "2026-06-29T21:29:24", patient: "S. Iyer", riskPct: 45.0, heartAge: 54, notes: "" },
-  { id: "r10", date: "2026-06-29T21:28:54", patient: "Anonymous", riskPct: 0.8, heartAge: 40, notes: "" },
-  { id: "r11", date: "2026-06-29T21:27:21", patient: "Anonymous", riskPct: 0.8, heartAge: 40, notes: "" },
-  { id: "r12", date: "2026-06-29T18:05:10", patient: "K. Nair", riskPct: 71.9, heartAge: 62, notes: "High priority" },
-];
-
-/* ===========================
       HELPERS
 =========================== */
 function getRiskLevel(pct) {
@@ -185,10 +164,31 @@ function RiskBadge({ pct }) {
       COMPONENT
 =========================== */
 export default function History() {
-  const [records, setRecords] = useState(SAMPLE_HISTORY);
+  const navigate = useNavigate();
+  const [records, setRecords] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
   const [search, setSearch] = useState("");
   const [riskFilter, setRiskFilter] = useState("all");
   const [sortBy, setSortBy] = useState("newest");
+
+  useEffect(() => {
+    apiFetch("/api/predictions")
+      .then((data) =>
+        setRecords(
+          data.map((r) => ({
+            id: r.id,
+            date: r.date,
+            patient: r.patient,
+            riskPct: r.riskPct,
+            heartAge: r.heartAge,
+            notes: r.notes,
+          }))
+        )
+      )
+      .catch((err) => setError(err.message || "Couldn't load history."))
+      .finally(() => setLoading(false));
+  }, []);
 
   const filtered = useMemo(() => {
     let rows = [...records];
@@ -221,13 +221,46 @@ export default function History() {
     return rows;
   }, [records, search, riskFilter, sortBy]);
 
-  const handleDelete = (id) => {
-    setRecords((prev) => prev.filter((r) => r.id !== id));
+  const handleDelete = async (id) => {
+    const prev = records;
+    setRecords((p) => p.filter((r) => r.id !== id)); // optimistic
+    try {
+      await apiFetch(`/api/predictions/${id}`, { method: "DELETE" });
+    } catch (err) {
+      setRecords(prev); // rollback on failure
+      setError(err.message || "Couldn't delete that record.");
+    }
   };
 
-  const handleDownload = (record) => {
-    // Placeholder — wire this up to real PDF/CSV export once the backend exists.
-    console.log("Download requested for record:", record.id);
+  const handleView = async (record) => {
+    try {
+      const full = await apiFetch(`/api/predictions/${record.id}`);
+      let patientData = {};
+      if (full.patient_id) {
+        try {
+          patientData = await apiFetch(`/api/patients/${full.patient_id}`);
+        } catch {
+          /* patient record may have been removed - still show what we have */
+        }
+      }
+      navigate("/results", {
+        state: {
+          result: {
+            prediction: full.prediction,
+            probability: full.probability,
+            riskLevel: full.risk_level,
+            confidence: full.confidence,
+            riskPct: full.risk_pct,
+            heartAge: full.heart_age,
+            healthScore: full.health_score,
+            recommendation: full.recommendation,
+          },
+          patientData,
+        },
+      });
+    } catch (err) {
+      setError(err.message || "Couldn't open that report.");
+    }
   };
 
   return (
@@ -250,6 +283,12 @@ export default function History() {
               Search, filter, sort and manage past assessments.
             </p>
           </motion.div>
+
+          {error && (
+            <div className="mt-4 px-4 py-3 rounded-xl bg-red-50 border border-red-200 text-red-600 text-sm">
+              {error}
+            </div>
+          )}
 
           {/* Controls */}
           <motion.div
@@ -309,7 +348,9 @@ export default function History() {
             transition={{ duration: 0.4, delay: 0.15 }}
             className="mt-6 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm"
           >
-            {filtered.length === 0 ? (
+            {loading ? (
+              <div className="px-6 py-16 text-center text-sm text-slate-400">Loading...</div>
+            ) : filtered.length === 0 ? (
               <div className="flex flex-col items-center justify-center px-6 py-16 text-center">
                 <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-slate-50">
                   <FiInbox className="h-6 w-6 text-slate-400" />
@@ -318,7 +359,9 @@ export default function History() {
                   No records found
                 </h3>
                 <p className="mt-1 text-sm text-slate-500">
-                  Try adjusting your search or filters.
+                  {records.length === 0
+                    ? "Run your first prediction to see it here."
+                    : "Try adjusting your search or filters."}
                 </p>
               </div>
             ) : (
@@ -368,7 +411,7 @@ export default function History() {
                             <RiskBadge pct={record.riskPct} />
                           </td>
                           <td className="px-6 py-3.5 text-sm text-slate-600">
-                            {record.heartAge}
+                            {record.heartAge ?? "—"}
                           </td>
                           <td className="px-6 py-3.5 text-sm text-slate-400">
                             {record.notes || "—"}
@@ -376,9 +419,10 @@ export default function History() {
                           <td className="px-6 py-3.5">
                             <div className="flex items-center justify-end gap-3">
                               <button
-                                onClick={() => handleDownload(record)}
+                                onClick={() => handleView(record)}
                                 className="text-slate-400 transition-colors hover:text-blue-600"
-                                aria-label="Download report"
+                                aria-label="View report"
+                                title="View full report"
                               >
                                 <FiDownload className="h-4 w-4" />
                               </button>

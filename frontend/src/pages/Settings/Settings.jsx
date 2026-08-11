@@ -12,7 +12,6 @@ import {
   FiMessageCircle,
   FiZap,
   FiClock,
-  FiUserCheck,
   FiSettings,
   FiMoon,
   FiBell,
@@ -42,8 +41,8 @@ function Sidebar() {
   const location = useLocation();
 
   return (
-    <aside className="w-60 bg-white border-r border-slate-200 flex flex-col shadow-sm">
-      <div className="px-6 py-6 border-b border-slate-100">
+    <aside className="w-60 bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 flex flex-col shadow-sm">
+      <div className="px-6 py-6 border-b border-slate-100 dark:border-slate-800">
         <motion.div
           initial={{ opacity: 0, y: -8 }}
           animate={{ opacity: 1, y: 0 }}
@@ -54,7 +53,7 @@ function Sidebar() {
             <FiHeart className="text-white w-5 h-5" />
           </div>
           <div>
-            <h2 className="font-semibold text-[15px] text-slate-900">
+            <h2 className="font-semibold text-[15px] text-slate-900 dark:text-slate-100">
               Heart Health Monitor
             </h2>
             <p className="text-[9px] tracking-[0.25em] text-slate-400 uppercase mt-1 font-medium">
@@ -77,7 +76,9 @@ function Sidebar() {
               whileTap={{ scale: 0.97 }}
               onClick={() => navigate(item.path)}
               className={`relative w-full flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm font-medium overflow-hidden ${
-                isActive ? "text-white" : "text-slate-600 hover:bg-slate-100"
+                isActive
+                  ? "text-white"
+                  : "text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"
               }`}
             >
               {isActive && (
@@ -87,19 +88,19 @@ function Sidebar() {
                   transition={{ type: "spring", stiffness: 380, damping: 32 }}
                 />
               )}
-              <item.icon className={`relative z-10 w-5 h-5 ${isActive ? "text-white" : "text-slate-500"}`} />
+              <item.icon className={`relative z-10 w-5 h-5 ${isActive ? "text-white" : "text-slate-500 dark:text-slate-400"}`} />
               <span className="relative z-10">{item.label}</span>
             </motion.button>
           );
         })}
       </nav>
 
-      <div className="px-6 py-5 border-t border-slate-100">
-        <div className="rounded-xl bg-slate-50 p-3">
-          <p className="text-[10px] text-slate-500 uppercase tracking-wider font-semibold">
+      <div className="px-6 py-5 border-t border-slate-100 dark:border-slate-800">
+        <div className="rounded-xl bg-slate-50 dark:bg-slate-800 p-3">
+          <p className="text-[10px] text-slate-500 dark:text-slate-400 uppercase tracking-wider font-semibold">
             AI MODEL
           </p>
-          <p className="font-semibold text-sm text-slate-900 mt-1">
+          <p className="font-semibold text-sm text-slate-900 dark:text-slate-100 mt-1">
             XGBoost v2.0
           </p>
         </div>
@@ -115,12 +116,12 @@ function SettingRow({ icon: Icon, title, description, children }) {
   return (
     <div className="flex items-start justify-between gap-4 px-6 py-5">
       <div className="flex items-start gap-3">
-        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-blue-50">
-          <Icon className="h-4 w-4 text-blue-600" />
+        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-blue-50 dark:bg-blue-500/10">
+          <Icon className="h-4 w-4 text-blue-600 dark:text-blue-400" />
         </div>
         <div>
-          <h3 className="text-sm font-semibold text-slate-900">{title}</h3>
-          <p className="mt-0.5 text-[13px] leading-relaxed text-slate-500">{description}</p>
+          <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100">{title}</h3>
+          <p className="mt-0.5 text-[13px] leading-relaxed text-slate-500 dark:text-slate-400">{description}</p>
         </div>
       </div>
       <div className="shrink-0">{children}</div>
@@ -129,36 +130,80 @@ function SettingRow({ icon: Icon, title, description, children }) {
 }
 
 /* ===========================
+      TOGGLE SWITCH
+   Reusable animated on/off switch (used by Notifications).
+=========================== */
+function ToggleSwitch({ checked, onChange, label }) {
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={checked}
+      aria-label={label}
+      onClick={() => onChange(!checked)}
+      className={`relative inline-flex h-7 w-12 shrink-0 items-center rounded-full transition-colors duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-400 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-slate-900 ${
+        checked ? "bg-blue-600" : "bg-slate-200 dark:bg-slate-700"
+      }`}
+    >
+      <motion.span
+        layout
+        transition={{ type: "spring", stiffness: 500, damping: 32 }}
+        className="inline-block h-5 w-5 rounded-full bg-white shadow-md"
+        style={{ marginLeft: checked ? "26px" : "4px" }}
+      />
+    </button>
+  );
+}
+
+/* ===========================
       COMPONENT
 =========================== */
 const DARK_MODE_KEY = "hhm_dark_mode";
+const NOTIFICATIONS_KEY = "hhm_notifications_enabled";
 const RISK_PROFILE_KEY = "hhm_risk_profile";
 const LAST_PREDICTION_KEY = "hhm_last_prediction";
 
 export default function Settings() {
   const [darkMode, setDarkMode] = useState(false);
+  const [notificationsEnabled, setNotificationsEnabled] = useState(true);
   const [cleared, setCleared] = useState(false);
 
+  // Load saved preferences on mount and apply dark mode immediately.
   useEffect(() => {
+    let savedDark = false;
+    let savedNotifications = true;
     try {
-      setDarkMode(localStorage.getItem(DARK_MODE_KEY) === "true");
+      savedDark = localStorage.getItem(DARK_MODE_KEY) === "true";
+      const storedNotif = localStorage.getItem(NOTIFICATIONS_KEY);
+      savedNotifications = storedNotif === null ? true : storedNotif === "true";
     } catch {
       /* localStorage unavailable — ignore */
     }
+    setDarkMode(savedDark);
+    setNotificationsEnabled(savedNotifications);
+    document.documentElement.classList.toggle("dark", savedDark);
   }, []);
 
-  const toggleDarkMode = () => {
-    const next = !darkMode;
-    setDarkMode(next);
+  // Keep <html class="dark"> in sync whenever darkMode changes, and persist.
+  useEffect(() => {
+    document.documentElement.classList.toggle("dark", darkMode);
     try {
-      localStorage.setItem(DARK_MODE_KEY, String(next));
+      localStorage.setItem(DARK_MODE_KEY, String(darkMode));
     } catch {
       /* ignore */
     }
-    // NOTE: actual theme switching (e.g. toggling a `dark` class on <html>,
-    // or a ThemeProvider) isn't wired up yet — this only persists the
-    // preference for now.
-  };
+  }, [darkMode]);
+
+  // Persist notification preference whenever it changes.
+  useEffect(() => {
+    try {
+      localStorage.setItem(NOTIFICATIONS_KEY, String(notificationsEnabled));
+    } catch {
+      /* ignore */
+    }
+  }, [notificationsEnabled]);
+
+  const toggleDarkMode = () => setDarkMode((prev) => !prev);
 
   const handleReset = () => {
     try {
@@ -172,7 +217,7 @@ export default function Settings() {
   };
 
   return (
-    <div className="min-h-screen flex bg-[#F8FAFC]">
+    <div className="min-h-screen flex bg-[#F8FAFC] dark:bg-slate-950 transition-colors">
       <Sidebar />
 
       <main className="flex-1 overflow-y-auto px-10 py-10">
@@ -183,10 +228,10 @@ export default function Settings() {
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.4, ease: "easeOut" }}
           >
-            <p className="text-[11px] font-semibold tracking-widest text-blue-600 uppercase">
+            <p className="text-[11px] font-semibold tracking-widest text-blue-600 dark:text-blue-400 uppercase">
               Preferences
             </p>
-            <h1 className="mt-1 text-3xl font-bold text-slate-900">Settings</h1>
+            <h1 className="mt-1 text-3xl font-bold text-slate-900 dark:text-slate-100">Settings</h1>
           </motion.div>
 
           {/* Settings cards */}
@@ -197,7 +242,7 @@ export default function Settings() {
             className="mt-6 space-y-4"
           >
             {/* Dark mode */}
-            <div className="rounded-2xl border border-slate-200 bg-white shadow-sm">
+            <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm">
               <SettingRow
                 icon={FiMoon}
                 title="Dark mode"
@@ -207,7 +252,7 @@ export default function Settings() {
                   onClick={toggleDarkMode}
                   className={`rounded-xl px-4 py-2 text-sm font-semibold transition-colors ${
                     darkMode
-                      ? "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                      ? "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700"
                       : "bg-blue-600 text-white hover:bg-blue-700"
                   }`}
                 >
@@ -217,20 +262,37 @@ export default function Settings() {
             </div>
 
             {/* Notifications */}
-            <div className="rounded-2xl border border-slate-200 bg-white shadow-sm">
+            <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm">
               <SettingRow
                 icon={FiBell}
                 title="Notifications"
-                description="Toast alerts inside the app are always on."
+                description={
+                  notificationsEnabled
+                    ? "Toast alerts inside the app are turned on."
+                    : "Toast alerts inside the app are turned off."
+                }
               >
-                <span className="inline-flex items-center rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-600">
-                  On
-                </span>
+                <div className="flex items-center gap-3">
+                  <span
+                    className={`text-xs font-semibold ${
+                      notificationsEnabled
+                        ? "text-emerald-600 dark:text-emerald-400"
+                        : "text-slate-400 dark:text-slate-500"
+                    }`}
+                  >
+                    {notificationsEnabled ? "On" : "Off"}
+                  </span>
+                  <ToggleSwitch
+                    checked={notificationsEnabled}
+                    onChange={setNotificationsEnabled}
+                    label="Toggle notifications"
+                  />
+                </div>
               </SettingRow>
             </div>
 
             {/* About */}
-            <div className="rounded-2xl border border-slate-200 bg-white shadow-sm">
+            <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm">
               <SettingRow
                 icon={FiHeart}
                 title="About this app"
@@ -239,7 +301,7 @@ export default function Settings() {
             </div>
 
             {/* Reset local data */}
-            <div className="rounded-2xl border border-slate-200 bg-white shadow-sm">
+            <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm">
               <SettingRow
                 icon={FiTrash2}
                 title="Reset local data"
@@ -252,7 +314,7 @@ export default function Settings() {
                       initial={{ opacity: 0, scale: 0.9 }}
                       animate={{ opacity: 1, scale: 1 }}
                       exit={{ opacity: 0, scale: 0.9 }}
-                      className="inline-flex items-center gap-1.5 rounded-xl px-4 py-2 text-sm font-semibold text-emerald-600"
+                      className="inline-flex items-center gap-1.5 rounded-xl px-4 py-2 text-sm font-semibold text-emerald-600 dark:text-emerald-400"
                     >
                       <FiCheck className="h-4 w-4" />
                       Cleared
@@ -264,7 +326,7 @@ export default function Settings() {
                       animate={{ opacity: 1, scale: 1 }}
                       exit={{ opacity: 0, scale: 0.9 }}
                       onClick={handleReset}
-                      className="rounded-xl border border-red-200 px-4 py-2 text-sm font-semibold text-red-500 transition-colors hover:bg-red-50"
+                      className="rounded-xl border border-red-200 dark:border-red-900 px-4 py-2 text-sm font-semibold text-red-500 dark:text-red-400 transition-colors hover:bg-red-50 dark:hover:bg-red-500/10"
                     >
                       Clear
                     </motion.button>

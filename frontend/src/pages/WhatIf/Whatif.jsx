@@ -1,5 +1,7 @@
-import React, { useMemo, useState } from "react";
+// frontend/src/pages/WhatIf/Whatif.jsx
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
+import { apiFetch } from "../../services/api";
 import {
   FiGrid,
   FiUser,
@@ -15,8 +17,7 @@ import {
 } from "react-icons/fi";
 
 // ---------------------------------------------------------------------------
-// Sidebar — matches Dashboard.jsx exactly: react-icons/fi, red gradient
-// logo, slate/blue palette, useNavigate + current-path active highlight.
+// Sidebar — matches Dashboard.jsx exactly
 // ---------------------------------------------------------------------------
 const navItems = [
   { icon: FiGrid, label: "Dashboard", path: "/dashboard" },
@@ -33,8 +34,6 @@ const navItems = [
 
 function Sidebar() {
   const navigate = useNavigate();
-  // useLocation (not window.location.pathname) so the active item updates
-  // immediately on client-side navigation instead of only after a reload.
   const location = useLocation();
 
   return (
@@ -90,8 +89,7 @@ function Sidebar() {
 }
 
 // ---------------------------------------------------------------------------
-// Slider primitive — label + value on top, native range styled to match the
-// thin blue track / dark thumb look from the screenshot, min/max captions.
+// Slider primitive
 // ---------------------------------------------------------------------------
 function SliderField({ label, value, min, max, step = 1, unit = "", onChange }) {
   const pct = ((value - min) / (max - min)) * 100;
@@ -138,7 +136,7 @@ function Checkbox({ label, checked, onChange }) {
 }
 
 // ---------------------------------------------------------------------------
-// Baseline values — same starting point shown in the screenshot.
+// Baseline values
 // ---------------------------------------------------------------------------
 const BASELINE = {
   bloodPressure: 120,
@@ -153,37 +151,59 @@ const BASELINE = {
   physicalActivity: 1,
   smoking: false,
   healthyDiet: true,
+  age: 50,
+  sex: "1",
 };
-
-// Very simple illustrative risk model, 0-100. Not medical advice — just
-// enough signal to drive the "Improvement" panel reactively.
-function computeRisk(v) {
-  let score = 0;
-  score += Math.max(0, v.bloodPressure - 110) * 0.35;
-  score += Math.max(0, v.cholesterol - 170) * 0.1;
-  score += Math.max(0, v.bmi - 22) * 1.6;
-  score += Math.max(0, 140 - v.maxHeartRate) * 0.12;
-  score += v.stDepression * 4;
-  score += v.stress * 3.2;
-  score += Math.max(0, 7 - v.sleep) * 2.5;
-  score += Math.max(0, 8000 - v.dailySteps) * 0.0015;
-  score += Math.max(0, 2 - v.waterIntake) * 2;
-  score += Math.max(0, 1 - v.physicalActivity) * 5;
-  score += v.smoking ? 18 : 0;
-  score -= v.healthyDiet ? 6 : 0;
-  return Math.min(100, Math.max(2, Math.round(score)));
-}
 
 export default function Whatif() {
   const [values, setValues] = useState(BASELINE);
+  const [currentRisk, setCurrentRisk] = useState(null);
+  const [baselineRisk, setBaselineRisk] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const debounceRef = useRef(null);
 
-  const baselineRisk = useMemo(() => computeRisk(BASELINE), []);
-  const currentRisk = useMemo(() => computeRisk(values), [values]);
+  const runPrediction = async (v) => {
+    try {
+      const result = await apiFetch("/api/whatif", {
+        method: "POST",
+        body: JSON.stringify(v),
+      });
+      return result.riskPct;
+    } catch (err) {
+      setError(err.message || "Couldn't reach the prediction model.");
+      return null;
+    }
+  };
 
-  const riskReduction = Math.round(
-    ((baselineRisk - currentRisk) / baselineRisk) * 100
-  );
-  const heartAgeDelta = Math.round((baselineRisk - currentRisk) / 4);
+  // Baseline risk - calculated once on mount
+  useEffect(() => {
+    runPrediction(BASELINE).then((risk) => {
+      if (risk != null) setBaselineRisk(risk);
+    });
+  }, []);
+
+  // Debounced live prediction whenever sliders change
+  useEffect(() => {
+    setLoading(true);
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(async () => {
+      const risk = await runPrediction(values);
+      if (risk != null) setCurrentRisk(risk);
+      setLoading(false);
+    }, 300);
+    return () => clearTimeout(debounceRef.current);
+  }, [values]);
+
+  const displayRisk = currentRisk ?? "...";
+  const riskReduction =
+    baselineRisk != null && currentRisk != null
+      ? Math.round(((baselineRisk - currentRisk) / baselineRisk) * 100)
+      : 0;
+  const heartAgeDelta =
+    baselineRisk != null && currentRisk != null
+      ? Math.round((baselineRisk - currentRisk) / 4)
+      : 0;
 
   const set = (key) => (val) => setValues((prev) => ({ ...prev, [key]: val }));
   const reset = () => setValues(BASELINE);
@@ -200,17 +220,26 @@ export default function Whatif() {
           </p>
           <h1 className="mt-1 text-3xl font-bold text-slate-900">What-If Simulator</h1>
           <p className="mt-1 text-sm text-slate-500">
-            Slide variables to see how lifestyle changes reshape the risk in real time.
+            Slide variables to see how lifestyle changes reshape the risk in real time (powered by the same ML model as your predictions).
           </p>
+
+          {error && (
+            <div className="mt-4 px-4 py-3 rounded-xl bg-red-50 border border-red-200 text-red-600 text-sm">
+              {error}
+            </div>
+          )}
 
           <div className="mt-8 grid grid-cols-1 gap-6 lg:grid-cols-[340px_1fr]">
             {/* Left column: risk gauge + improvement */}
             <div className="space-y-6">
               <div className="flex h-40 items-center justify-center rounded-2xl border border-slate-200 bg-white">
                 <div className="text-center">
-                  <p className="text-4xl font-bold text-slate-900">{currentRisk}%</p>
+                  <p className="text-4xl font-bold text-slate-900">
+                    {displayRisk}
+                    {currentRisk != null ? "%" : ""}
+                  </p>
                   <p className="mt-1 text-xs font-medium text-slate-400">
-                    Predicted 10-year risk
+                    {loading ? "Recalculating..." : "Predicted risk"}
                   </p>
                 </div>
               </div>
@@ -330,6 +359,14 @@ export default function Whatif() {
                   value={values.physicalActivity}
                   onChange={set("physicalActivity")}
                 />
+                <SliderField
+                  label="Age"
+                  unit=" yrs"
+                  min={18}
+                  max={90}
+                  value={values.age}
+                  onChange={set("age")}
+                />
 
                 <Checkbox
                   label="Smoking"
@@ -347,7 +384,7 @@ export default function Whatif() {
         </div>
       </main>
 
-      {/* Slider thumb / track styling to match the reference look */}
+      {/* Slider thumb / track styling */}
       <style>{`
         .slider-input {
           -webkit-appearance: none;
