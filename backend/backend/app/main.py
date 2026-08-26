@@ -19,8 +19,8 @@ origins = [
     "http://localhost:5173",
     "http://127.0.0.1:5173",
     "http://localhost:3000",
+    "https://heart-disease-risk-prediction-system-using-al-jfkncupxk.vercel.app",
 ]
-
 app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,
