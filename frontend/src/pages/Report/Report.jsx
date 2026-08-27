@@ -1,7 +1,7 @@
 // frontend/src/pages/Report/Report.jsx
 import React, { useState, useRef, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { apiFetch } from "../../services/api";
+import { apiFetch, API_URL } from "../../services/api";
 import {
   FiFileText,
   FiUpload,
@@ -69,8 +69,8 @@ const Report = () => {
       const formData = new FormData();
       Array.from(fileList).forEach((file) => formData.append("files", file));
 
-      const res = await fetch("http://localhost:8000/api/reports/upload", {
-        method: "POST",
+const res = await fetch(`${API_URL}/api/reports/upload`, {
+  method: "POST",
         headers: {
           ...(token ? { Authorization: `Bearer ${token}` } : {}),
         },
